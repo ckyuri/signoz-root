@@ -2,11 +2,11 @@ version: "3.9"
 
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:23.11.2-alpine
+    image: clickhouse/clickhouse-server:24.1.2-alpine
     volumes:
       - ./clickhouse-config.xml:/etc/clickhouse-server/config.xml
       - ./clickhouse-users.xml:/etc/clickhouse-server/users.xml
-      - ./clickhouse-data:/var/lib/clickhouse
+      - clickhouse-data:/var/lib/clickhouse
     ports:
       - "9000:9000"
       - "8123:8123"
@@ -17,28 +17,49 @@ services:
       retries: 3
 
   query-service:
-    image: signoz/query-service:latest
+    image: signoz/query-service:0.75.0
     ports:
       - "8080:8080"
     environment:
       - ClickHouseUrl=tcp://clickhouse:9000
+      - STORAGE=clickhouse
+      - GODEBUG=netdns=go
+      - TELEMETRY_ENABLED=true
     depends_on:
-      - clickhouse
+      clickhouse:
+        condition: service_healthy
 
   frontend:
-    image: signoz/frontend:latest
+    image: signoz/frontend:0.75.0
     ports:
       - "3301:3301"
     depends_on:
       - query-service
 
   otel-collector:
-    image: signoz/otelcontribcol:latest
+    image: signoz/signoz-otel-collector:0.111.29
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    environment:
+      - OTEL_RESOURCE_ATTRIBUTES=host.name=signoz-host,os.type=linux
     ports:
       - "4317:4317"    # OTLP gRPC
       - "4318:4318"    # OTLP http
     depends_on:
-      - clickhouse
+      clickhouse:
+        condition: service_healthy
+
+  schema-migrator:
+    image: signoz/signoz-schema-migrator:0.111.29
+    command:
+      - sync
+      - --dsn=tcp://clickhouse:9000
+      - --up=
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: on-failure
+
+volumes:
+  clickhouse-data:
