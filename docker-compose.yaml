@@ -7,7 +7,9 @@ services:
       - ./deploy/docker/common/clickhouse/config.xml:/etc/clickhouse-server/config.xml
       - ./deploy/docker/common/clickhouse/users.xml:/etc/clickhouse-server/users.xml
       - ./deploy/docker/common/clickhouse/custom-function.xml:/etc/clickhouse-server/custom-function.xml
-      - clickhouse-data:/var/lib/clickhouse
+      - ./deploy/docker/common/clickhouse/user_scripts:/var/lib/clickhouse/user_scripts/
+      - ./deploy/docker/common/clickhouse/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml
+      - clickhouse-data:/var/lib/clickhouse/
     ports:
       - "9000:9000"
       - "8123:8123"
@@ -21,16 +23,23 @@ services:
     image: signoz/query-service:0.75.0
     command:
       - --config=/root/config/prometheus.yml
+      - --use-logs-new-schema=true
+      - --use-trace-new-schema=true
     ports:
       - "8080:8080"
     volumes:
       - ./deploy/docker/common/signoz/prometheus.yml:/root/config/prometheus.yml
       - ./deploy/docker/common/dashboards:/root/config/dashboards
+      - sqlite:/var/lib/signoz/
     environment:
       - ClickHouseUrl=tcp://clickhouse:9000
+      - ALERTMANAGER_API_PREFIX=http://alertmanager:9093/api/
+      - SIGNOZ_SQLSTORE_SQLITE_PATH=/var/lib/signoz/signoz.db
+      - DASHBOARDS_PATH=/root/config/dashboards
       - STORAGE=clickhouse
       - GODEBUG=netdns=go
       - TELEMETRY_ENABLED=true
+      - DEPLOYMENT_TYPE=docker-standalone-amd
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -39,12 +48,18 @@ services:
     image: signoz/frontend:0.75.0
     ports:
       - "3301:3301"
+    volumes:
+      - ./deploy/docker/common/signoz/nginx-config.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - query-service
 
   otel-collector:
     image: signoz/signoz-otel-collector:0.111.29
-    command: ["--config=/etc/otel-collector-config.yaml"]
+    command:
+      - --config=/etc/otel-collector-config.yaml
+      - --manager-config=/etc/manager-config.yaml
+      - --copy-path=/var/tmp/collector-config.yaml
+      - --feature-gates=-pkg.translator.prometheus.NormalizeName
     volumes:
       - ./deploy/docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
       - ./deploy/docker/common/signoz/otel-collector-opamp-config.yaml:/etc/manager-config.yaml
@@ -53,7 +68,7 @@ services:
       - LOW_CARDINAL_EXCEPTION_GROUPING=false
     ports:
       - "4317:4317"    # OTLP gRPC
-      - "4318:4318"    # OTLP http
+      - "4318:4318"    # OTLP HTTP
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -71,3 +86,4 @@ services:
 
 volumes:
   clickhouse-data:
+  sqlite:
