@@ -4,9 +4,9 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.1.2-alpine
     volumes:
-      - ./deploy/common/clickhouse/config.xml:/etc/clickhouse-server/config.xml
-      - ./deploy/common/clickhouse/users.xml:/etc/clickhouse-server/users.xml
-      - ./deploy/common/clickhouse/custom-function.xml:/etc/clickhouse-server/custom-function.xml
+      - ./deploy/docker/common/clickhouse/config.xml:/etc/clickhouse-server/config.xml
+      - ./deploy/docker/common/clickhouse/users.xml:/etc/clickhouse-server/users.xml
+      - ./deploy/docker/common/clickhouse/custom-function.xml:/etc/clickhouse-server/custom-function.xml
       - clickhouse-data:/var/lib/clickhouse
     ports:
       - "9000:9000"
@@ -24,8 +24,8 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./deploy/common/signoz/prometheus.yml:/root/config/prometheus.yml
-      - ./deploy/common/dashboards:/root/config/dashboards
+      - ./deploy/docker/common/signoz/prometheus.yml:/root/config/prometheus.yml
+      - ./deploy/docker/common/dashboards:/root/config/dashboards
     environment:
       - ClickHouseUrl=tcp://clickhouse:9000
       - STORAGE=clickhouse
@@ -47,7 +47,7 @@ services:
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./deploy/docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
-      - ./deploy/common/signoz/otel-collector-opamp-config.yaml:/etc/manager-config.yaml
+      - ./deploy/docker/common/signoz/otel-collector-opamp-config.yaml:/etc/manager-config.yaml
     environment:
       - OTEL_RESOURCE_ATTRIBUTES=host.name=signoz-host,os.type=linux
       - LOW_CARDINAL_EXCEPTION_GROUPING=false
